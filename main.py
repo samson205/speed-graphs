@@ -140,6 +140,8 @@ def plots(df_tests: list) -> None:
         ax2.set_ylim(ymin=0)
         fig2.savefig(f"temp/test{i + 1}_percent.png")
 
+        plt.close("all")
+
 
 def delete_images(folder_path="temp") -> None:
     for file_name in os.listdir(folder_path):
@@ -191,19 +193,16 @@ def main(file_name: str) -> bool:
         mean_write, mean_read = mean_speed(df_tests)
         mean_time = mean_cycle_time(df_tests)
         generator.add_table([
-            ['Объем\nнакопителя', 'Режим\nтестирования', 'Результат\nтестирования',
-             'Общее\nвремя\nтестирования', 'Кол-во\nпроходов\nчтения и\nзаписи',
-             'Среднее\nвремя\nодного цикла\nчтения и\nзаписи', 'Средняя\nскорость\nчтения и\nзаписи',
-             'Минимальная\nскорость\nчтения и\nзаписи', 'Максимальная\nскорость чтения\nи записи'],
-            [f'{blocks} блоков\n({blocks * 1024} байт)',
-             name.capitalize(),
-             'Пройдено',
-             time_string,
-             f"{len(tests) // 2}",
-             mean_time,
-             f"{mean_read}; {mean_write} МБ/с\n{mean_read * 1024}; {mean_write * 1024} кБ/с\n{mean_read * 1024 * 1024};\n{mean_write * 1024 * 1024} байт/с",
-             f"{min_read}; {min_write} МБ/с\n{min_read * 1024}; {min_write * 1024} кБ/с\n{min_read * 1024 * 1024};\n{min_write * 1024 * 1024} байт/с",
-             f"{max_read}; {max_write} МБ/с\n{max_read * 1024}; {max_write * 1024} кБ/с\n{max_read * 1024 * 1024};\n{max_write * 1024 * 1024} байт/с"]
+            ["Параметр", "Чтение", "Запись"],
+            ["Объем накопителя", f"{blocks} блоков\n{blocks // 1024} МБ"],
+            ["Режим тестирования", name.capitalize()],
+            ["Результат тестирования", "Пройдено"],
+            ["Общее время тестирования", time_string],
+            ["Количество проходов чтения\nи записи", len(tests)],
+            ["Среднее время одного цикла\nчтения и записи", mean_time],
+            ["Средняя скорость чтения и записи", f"{mean_read} МБ/с", f"{mean_write} МБ/с"],
+            ["Минимальная скорость чтения\nи записи", f"{min_read} МБ/с", f"{min_write} МБ/с"],
+            ["Максимальная скорость чтения\nи записи", f"{max_read} МБ/с", f"{max_write} МБ/с"]
         ])
         for i in range(len(tests)):
             generator.add_image(f"temp/test{i + 1}.png")

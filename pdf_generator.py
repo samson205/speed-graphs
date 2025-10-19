@@ -34,13 +34,19 @@ class PDFGenerator:
         table = Table(data)
 
         if style is None:
-            style = TableStyle([
+            rows_to_span = range(2, 7)
+            style = [
+                ('SPAN', (1, 1), (2, 1)),
                 ('FONTNAME', (0, 0), (-1, -1), 'Arial'),
-                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('FONTSIZE', (0, 0), (-1, -1), 14),
+                ('LEADING', (0, 0), (-1, -1), 18),
 
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ])
+            ]
+            for row in rows_to_span:
+                style.append(('SPAN', (1, row), (2, row)))
+            style = TableStyle(style)
 
         table.setStyle(style)
         self._elements.append(table)
