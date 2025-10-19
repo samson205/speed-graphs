@@ -1,5 +1,6 @@
 import os
 import re
+from datetime import date
 from typing import Union
 
 import numpy as np
@@ -9,7 +10,21 @@ import matplotlib.pyplot as plt
 from pdf_generator import PDFGenerator
 
 
-def read_file(file_name: str):
+class FileInfo:
+    """Класс для хранения информации, извлеченной из файла"""
+    all_tests = None
+    mode = None
+    total_blocks = None
+    complete = None
+
+    def __init__(self, all_tests, mode, total_blocks, complete):
+        self.all_tests = all_tests
+        self.mode = mode
+        self.total_blocks = total_blocks
+        self.complete = complete
+
+
+def read_file(file_name: str) -> Union[FileInfo, None]:
     with open(file_name, 'r', encoding="utf-8") as file:
         lines = file.readlines()
 
@@ -55,9 +70,9 @@ def read_file(file_name: str):
             current = None
 
     if 'completed' in lines[-1]:
-        return all_tests, mode, total_blocks, complete
+        return FileInfo(all_tests, mode, total_blocks, complete)
 
-    return False, mode, total_blocks, False
+    return None
 
 
 def data_processed(data: str) -> Union[dict, None]:
@@ -181,19 +196,24 @@ def mean_cycle_time(df_tests: list):
 
 
 def main(file_name: str) -> bool:
-    tests, name, blocks, complete = read_file(f"data/{file_name}")
+    tests_file = read_file(f"data/{file_name}")
+    tests, name, blocks, complete = (tests_file.all_tests, tests_file.mode,
+                                     tests_file.total_blocks, tests_file.complete)
     if complete:
         df_tests = [calculate_speed(tests[i]) for i in range(len(tests))]
         plots(df_tests)
         generator = PDFGenerator(f"{file_name.split('.')[0]}.pdf")
         generator.add_title()
-        time_string = f"{df_tests[-1]['hours'].iloc[-1]}:{df_tests[-1]['minutes'].iloc[-1]}:{df_tests[-1]['seconds'].iloc[-1]}"
+        time_string = (f"{df_tests[-1]['hours'].iloc[-1]}:" +
+                       f"{df_tests[-1]['minutes'].iloc[-1]}:{df_tests[-1]['seconds'].iloc[-1]}")
         max_write, max_read = max_speed(df_tests)
         min_write, min_read = min_speed(df_tests)
         mean_write, mean_read = mean_speed(df_tests)
         mean_time = mean_cycle_time(df_tests)
         generator.add_table([
             ["Параметр", "Чтение", "Запись"],
+            ["Название исходного файла", file_name],
+            ["Дата генерации отчета", date.today().strftime("%d/%m/%Y")],
             ["Объем накопителя", f"{blocks} блоков\n{blocks // 1024} МБ"],
             ["Режим тестирования", name.capitalize()],
             ["Результат тестирования", "Пройдено"],

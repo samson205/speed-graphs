@@ -34,7 +34,7 @@ class PDFGenerator:
         table = Table(data)
 
         if style is None:
-            rows_to_span = range(2, 7)
+            rows_to_span = range(2, 9)
             style = [
                 ('SPAN', (1, 1), (2, 1)),
                 ('FONTNAME', (0, 0), (-1, -1), 'Arial'),
