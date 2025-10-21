@@ -17,7 +17,8 @@ class FileInfo:
     total_blocks = None
     complete = None
 
-    def __init__(self, all_tests, mode, total_blocks, complete):
+    def __init__(self, all_tests: list, mode: str,
+                 total_blocks: int, complete: bool):
         self.all_tests = all_tests
         self.mode = mode
         self.total_blocks = total_blocks
@@ -72,7 +73,7 @@ def read_file(file_name: str) -> Union[FileInfo, None]:
     if 'completed' in lines[-1]:
         return FileInfo(all_tests, mode, total_blocks, complete)
 
-    return None
+    return FileInfo([], mode, total_blocks, complete)
 
 
 def data_processed(data: str) -> Union[dict, None]:
@@ -112,9 +113,18 @@ def calculate_speed(test: dict) -> pd.DataFrame:
     df['time_delta'] = df['total_time'].diff()
     df = df[df['time_delta'] > 0]
 
-    df['b_per_sec'] = (df['blocks_delta'] * 1024) / df['time_delta']
-    df['kb_per_sec'] = df['b_per_sec'] / 1024
-    df['mb_per_sec'] = df['kb_per_sec'] / 1024
+    b_per_sec = (df['blocks_delta'] * 1024) / df['time_delta']
+    if b_per_sec.mean() >= 1024 * 1024:
+        df['speed'] = b_per_sec / 1024 / 1024
+        df['speed_dim'] = "МБ/с"
+    elif b_per_sec.mean() >= 1024:
+        df['speed'] = b_per_sec / 1024
+        df['speed_dim'] = "кБ/с"
+    else:
+        df['speed'] = b_per_sec / 1024
+        df['speed_dim'] = "байт/с"
+    # df['kb_per_sec'] = df['b_per_sec'] / 1024
+    # df['mb_per_sec'] = df['kb_per_sec'] / 1024
 
     df['test_name'] = test['name']
 
@@ -128,11 +138,12 @@ def plots(df_tests: list) -> None:
     for i, current_test in enumerate(df_tests):
         fig1, ax1 = plt.subplots(figsize=(18, 10))
         new_x = np.linspace(0, current_test['total_time'].iloc[-1], 1500)
-        new_y = np.interp(new_x, current_test['total_time'], current_test['mb_per_sec'])
+        new_y = np.interp(new_x, current_test['total_time'], current_test['speed'])
         ax1.plot(new_x, new_y)
-        ax1.set_title(current_test['test_name'].iloc[0] + " (зависимость скорости от времени)", fontsize=20)
+        ax1.set_title(current_test['test_name'].iloc[0] +
+                      " (зависимость скорости от времени)", fontsize=20)
         ax1.set_xlabel('Время, сек', fontsize=18)
-        ax1.set_ylabel('Скорость, МБ/сек', fontsize=18)
+        ax1.set_ylabel(f"Скорость, {current_test['speed_dim'].iloc[0]}", fontsize=18)
         ax1.grid(which='minor', color='0.85')
         ax1.minorticks_on()
         ax1.grid(which='major', color='0.5')
@@ -142,11 +153,12 @@ def plots(df_tests: list) -> None:
 
         fig2, ax2 = plt.subplots(figsize=(18, 10))
         new_x = np.linspace(0, current_test['percent'].iloc[-1], 1500)
-        new_y = np.interp(new_x, current_test['percent'], current_test['mb_per_sec'])
+        new_y = np.interp(new_x, current_test['percent'], current_test['speed'])
         ax2.plot(new_x, new_y)
-        ax2.set_title(current_test['test_name'].iloc[0] + " (зависимость скорости от объема)", fontsize=20)
+        ax2.set_title(current_test['test_name'].iloc[0] +
+                      " (зависимость скорости от объема)", fontsize=20)
         ax2.set_xlabel('Объем накопителя в %', fontsize=18)
-        ax2.set_ylabel('Скорость, МБ/сек', fontsize=18)
+        ax2.set_ylabel(f"Скорость, {current_test['speed_dim'].iloc[0]}", fontsize=18)
         ax2.grid(which='minor', color='0.85')
         ax2.minorticks_on()
         ax2.grid(which='major', color='0.5')
@@ -158,7 +170,7 @@ def plots(df_tests: list) -> None:
         plt.close("all")
 
 
-def delete_images(folder_path="temp") -> None:
+def delete_images(folder_path: str = "temp") -> None:
     for file_name in os.listdir(folder_path):
         file_path = os.path.join(folder_path, file_name)
         try:
@@ -168,30 +180,31 @@ def delete_images(folder_path="temp") -> None:
             print(f"Ошибка при удалении файла {file_path}")
 
 
-def mean_speed(df_tests: list):
-    all_write_speeds = pd.concat(df_tests[i]['mb_per_sec'] for i in range(0, len(df_tests), 2))
-    all_read_speeds = pd.concat(df_tests[i]['mb_per_sec'] for i in range(1, len(df_tests), 2))
+def mean_speed(df_tests: list) -> tuple[float, float]:
+    all_write_speeds = pd.concat(df_tests[i]['speed'] for i in range(0, len(df_tests), 2))
+    all_read_speeds = pd.concat(df_tests[i]['speed'] for i in range(1, len(df_tests), 2))
     return round(all_write_speeds.mean(), 1), round(all_read_speeds.mean(), 1)
 
 
-def min_speed(df_tests: list):
-    all_write_speeds = pd.concat(df_tests[i]['mb_per_sec'] for i in range(0, len(df_tests), 2))
-    all_read_speeds = pd.concat(df_tests[i]['mb_per_sec'] for i in range(1, len(df_tests), 2))
+def min_speed(df_tests: list) -> tuple[float, float]:
+    all_write_speeds = pd.concat(df_tests[i]['speed'] for i in range(0, len(df_tests), 2))
+    all_read_speeds = pd.concat(df_tests[i]['speed'] for i in range(1, len(df_tests), 2))
     return round(all_write_speeds.min(), 1), round(all_read_speeds.min(), 1)
 
 
-def max_speed(df_tests: list):
-    all_write_speeds = pd.concat(df_tests[i]['mb_per_sec'] for i in range(0, len(df_tests), 2))
-    all_read_speeds = pd.concat(df_tests[i]['mb_per_sec'] for i in range(1, len(df_tests), 2))
+def max_speed(df_tests: list) -> tuple[float, float]:
+    all_write_speeds = pd.concat(df_tests[i]['speed'] for i in range(0, len(df_tests), 2))
+    all_read_speeds = pd.concat(df_tests[i]['speed'] for i in range(1, len(df_tests), 2))
     return round(all_write_speeds.max(), 1), round(all_read_speeds.max(), 1)
 
 
-def mean_cycle_time(df_tests: list):
-    all_write_time = [df_tests[i]['total_time'].iloc[-1] for i in range(0, len(df_tests), 2)]
-    all_read_time = [df_tests[i]['total_time'].iloc[-1] for i in range(1, len(df_tests), 2)]
-    cycles = [all_write_time[i] + all_read_time[i] for i in range(len(all_write_time))]
-    mean_time = round(sum(cycles) / len(cycles))
-    spread = round(((max(cycles) - min(cycles)) / mean_time) * 100, 2)
+def mean_cycle_time(df_tests: list) -> str:
+    # all_write_time = [df_tests[i]['total_time'].iloc[-1] for i in range(0, len(df_tests), 2)]
+    # all_read_time = [df_tests[i]['total_time'].iloc[-1] for i in range(1, len(df_tests), 2)]
+    all_time = [df_tests[i]['total_time'].iloc[-1] for i in range(len(df_tests))]
+    # cycles = [all_write_time[i] + all_read_time[i] for i in range(len(all_write_time))]
+    mean_time = round(sum(all_time) / len(all_time))
+    spread = round(((max(all_time) - min(all_time)) / mean_time) * 100, 2)
     return f"{mean_time // 3600}:{(mean_time % 3600) // 60}:{mean_time % 60}\n{spread}%"
 
 
@@ -199,7 +212,7 @@ def main(file_name: str) -> bool:
     tests_file = read_file(f"data/{file_name}")
     tests, name, blocks, complete = (tests_file.all_tests, tests_file.mode,
                                      tests_file.total_blocks, tests_file.complete)
-    if complete:
+    if tests:
         df_tests = [calculate_speed(tests[i]) for i in range(len(tests))]
         plots(df_tests)
         generator = PDFGenerator(f"{file_name.split('.')[0]}.pdf")
@@ -210,6 +223,7 @@ def main(file_name: str) -> bool:
         min_write, min_read = min_speed(df_tests)
         mean_write, mean_read = mean_speed(df_tests)
         mean_time = mean_cycle_time(df_tests)
+        dim_r, dim_w = df_tests[1]['speed_dim'].iloc[0], df_tests[0]['speed_dim'].iloc[0]
         generator.add_table([
             ["Параметр", "Чтение", "Запись"],
             ["Название исходного файла", file_name],
@@ -220,9 +234,9 @@ def main(file_name: str) -> bool:
             ["Общее время тестирования", time_string],
             ["Количество проходов чтения\nи записи", len(tests)],
             ["Среднее время одного цикла\nчтения и записи", mean_time],
-            ["Средняя скорость чтения и записи", f"{mean_read} МБ/с", f"{mean_write} МБ/с"],
-            ["Минимальная скорость чтения\nи записи", f"{min_read} МБ/с", f"{min_write} МБ/с"],
-            ["Максимальная скорость чтения\nи записи", f"{max_read} МБ/с", f"{max_write} МБ/с"]
+            ["Средняя скорость чтения и записи", f"{mean_read} {dim_r}", f"{mean_write} {dim_w}"],
+            ["Минимальная скорость чтения\nи записи", f"{min_read} {dim_r}", f"{min_write} {dim_w}"],
+            ["Максимальная скорость чтения\nи записи", f"{max_read} {dim_r}", f"{max_write} {dim_w}"]
         ])
         for i in range(len(tests)):
             generator.add_image(f"temp/test{i + 1}.png")
@@ -235,19 +249,18 @@ def main(file_name: str) -> bool:
         generator = PDFGenerator(f"{file_name.split('.')[0]}.pdf")
         generator.add_title()
         generator.add_table([
-            ['Объем\nнакопителя', 'Режим\nтестирования', 'Результат\nтестирования', 'Общее\nвремя\nтестирования',
-             'Кол-во\nпроходов\nчтения и\nзаписи', 'Среднее\nвремя\nодного цикла\nчтения и\nзаписи',
-             'Средняя\nскорость\nчтения и\nзаписи', 'Минимальная\nскорость\nчтения и\nзаписи',
-             'Максимальная\nскорость чтения\nи записи'],
-            [f"{blocks} блоков\n({blocks * 1024} байт)",
-             name.capitalize(),
-             'Провалено',
-             '-',
-             '-',
-             '-',
-             '-',
-             '-',
-             '-']
+            ["Параметр", "Чтение", "Запись"],
+            ["Название исходного файла", file_name],
+            ["Дата генерации отчета", date.today().strftime("%d/%m/%Y")],
+            ["Объем накопителя", f"{blocks} блоков\n{blocks // 1024} МБ"],
+            ["Режим тестирования", name.capitalize()],
+            ["Результат тестирования", "Провалено"],
+            ["Общее время тестирования", "-"],
+            ["Количество проходов чтения\nи записи", "-"],
+            ["Среднее время одного цикла\nчтения и записи", "-"],
+            ["Средняя скорость чтения и записи", "-"],
+            ["Минимальная скорость чтения\nи записи", "-"],
+            ["Максимальная скорость чтения\nи записи", "-"]
         ])
 
         generator.generate()
@@ -256,8 +269,14 @@ def main(file_name: str) -> bool:
 
 
 if __name__ == "__main__":
-    fname = input('Введите имя файла в папке data: ')
-    if main(fname):
+    # fname = input('Введите имя файла в папке data: ')
+    # for f in os.listdir("data"):
+    #     if main(f):
+    #         print("Отчет успешно сгенерирован")
+    #     else:
+    #         print("Тест не был пройден")
+
+    if main("ADATA-SU650-240G-dead-random.bbl"):
         print("Отчет успешно сгенерирован")
     else:
         print("Тест не был пройден")
