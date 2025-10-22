@@ -7,8 +7,7 @@ from reportlab.lib.units import inch, cm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-pdfmetrics.registerFont(TTFont('Arial', 'C:/Windows/Fonts/arial.ttf'))
-pdfmetrics.registerFont(TTFont('Arial-Bold', 'C:/Windows/Fonts/arialbd.ttf'))
+pdfmetrics.registerFont(TTFont('Arial', 'fonts/arial.ttf'))
 
 
 class PDFGenerator:
@@ -63,7 +62,7 @@ class PDFGenerator:
                 self._elements.append(Spacer(1, 20))
                 return True
         except Exception as e:
-            print(f"Произошла ошибка при добавлении изображения: {e}")
+            print(f"Произошла ошибка при добавлении изображения: {str(e)}")
         return False
 
     def generate(self) -> None:

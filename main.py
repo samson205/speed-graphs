@@ -205,7 +205,19 @@ def mean_cycle_time(df_tests: list) -> str:
     # cycles = [all_write_time[i] + all_read_time[i] for i in range(len(all_write_time))]
     mean_time = round(sum(all_time) / len(all_time))
     spread = round(((max(all_time) - min(all_time)) / mean_time) * 100, 2)
-    return f"{mean_time // 3600}:{(mean_time % 3600) // 60}:{mean_time % 60}\n{spread}%"
+    return f"{mean_time // 3600}:{(mean_time % 3600) // 60}:{mean_time % 60}\n±{spread}%"
+
+
+def format_blocks(blocks: int) -> str:
+    size_kb = blocks
+
+    if size_kb >= 1024 * 1024 * 1024:
+        return f"{size_kb / 1024 / 1024 / 1024:.2f} ТБ"
+    elif size_kb >= 1024 * 1024:
+        return f"{size_kb / 1024 / 1024:.2f} ГБ"
+    elif size_kb >= 1024:
+        return f"{size_kb / 1024:.2f} МБ"
+    return f"{size_kb} кБ"
 
 
 def main(file_name: str) -> bool:
@@ -228,7 +240,7 @@ def main(file_name: str) -> bool:
             ["Параметр", "Чтение", "Запись"],
             ["Название исходного файла", file_name],
             ["Дата генерации отчета", date.today().strftime("%d/%m/%Y")],
-            ["Объем накопителя", f"{blocks} блоков\n{blocks // 1024} МБ"],
+            ["Объем накопителя", f"{blocks:,} блоков\n{format_blocks(blocks)}"],
             ["Режим тестирования", name.capitalize()],
             ["Результат тестирования", "Пройдено"],
             ["Общее время тестирования", time_string],
@@ -252,7 +264,7 @@ def main(file_name: str) -> bool:
             ["Параметр", "Чтение", "Запись"],
             ["Название исходного файла", file_name],
             ["Дата генерации отчета", date.today().strftime("%d/%m/%Y")],
-            ["Объем накопителя", f"{blocks} блоков\n{blocks // 1024} МБ"],
+            ["Объем накопителя", f"{blocks} блоков\n{format_blocks(blocks)}"],
             ["Режим тестирования", name.capitalize()],
             ["Результат тестирования", "Провалено"],
             ["Общее время тестирования", "-"],
@@ -271,12 +283,15 @@ def main(file_name: str) -> bool:
 if __name__ == "__main__":
     # fname = input('Введите имя файла в папке data: ')
     # for f in os.listdir("data"):
+    # print("Файл: " + f)
     #     if main(f):
-    #         print("Отчет успешно сгенерирован")
+    #         print("Отчет успешно сгенерирован\n")
     #     else:
     #         print("Тест не был пройден")
 
-    if main("ADATA-SU650-240G-dead-random.bbl"):
+    f = "SanDisk-Ultra-64G.bbl"
+    print("Файл: " + f)
+    if main(f):
         print("Отчет успешно сгенерирован")
     else:
         print("Тест не был пройден")
