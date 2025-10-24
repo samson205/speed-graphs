@@ -1,6 +1,6 @@
 import os
 from reportlab.lib.pagesizes import A4, landscape
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Image, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Image, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.units import inch, cm
@@ -48,6 +48,16 @@ class PDFGenerator:
                 style.append(('SPAN', (1, row), (2, row)))
             style = TableStyle(style)
 
+        elif style == "tests_table":
+            style = [
+                ('FONTNAME', (0, 0), (-1, -1), 'Arial'),
+                ('FONTSIZE', (0, 0), (-1, -1), 14),
+                ('LEADING', (0, 0), (-1, -1), 18),
+
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ]
+
         table.setStyle(style)
         self._elements.append(table)
         self._elements.append(Spacer(1, 20))
@@ -64,6 +74,9 @@ class PDFGenerator:
         except Exception as e:
             print(f"Произошла ошибка при добавлении изображения: {str(e)}")
         return False
+
+    def add_page_break(self) -> None:
+        self._elements.append(PageBreak())
 
     def generate(self) -> None:
         self._doc.build(self._elements)
