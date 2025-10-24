@@ -1,3 +1,4 @@
+import argparse
 import os
 import re
 from datetime import date
@@ -236,16 +237,23 @@ def format_blocks(blocks: int) -> str:
     return f"{size_kb} кБ"
 
 
-def create_pdf(all_tests: FileInfo, file_name) -> bool:
+def create_pdf(all_tests: FileInfo, file_name: str, output_dir: str = None) -> bool:
     if all_tests is None:
         return False
+
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, f"{os.path.splitext(file_name)[0]}.pdf")
+
+    else:
+        output_path = f"{os.path.splitext(file_name)[0]}.pdf"
 
     tests, name, blocks, complete = (all_tests.all_tests, all_tests.mode,
                                      all_tests.total_blocks, all_tests.complete)
     if tests:
         df_tests = [calculate_speed(tests[i]) for i in range(len(tests))]
         plots(df_tests)
-        generator = PDFGenerator(f"{file_name.split('.')[0]}.pdf")
+        generator = PDFGenerator(output_path)
         generator.add_title()
         time_string = (f"{df_tests[-1]['hours'].iloc[-1]}:" +
                        f"{df_tests[-1]['minutes'].iloc[-1]}:{df_tests[-1]['seconds'].iloc[-1]}")
@@ -294,7 +302,7 @@ def create_pdf(all_tests: FileInfo, file_name) -> bool:
         delete_images()
 
     else:
-        generator = PDFGenerator(f"{file_name.split('.')[0]}.pdf")
+        generator = PDFGenerator(output_path)
         generator.add_title()
         generator.add_table([
             ["Параметр", "Чтение", "Запись"],
@@ -316,17 +324,53 @@ def create_pdf(all_tests: FileInfo, file_name) -> bool:
     return True
 
 
-def main(file_name: str) -> bool:
-    tests_file = read_file(f"data/{file_name}")
-    return create_pdf(tests_file, file_name)
+def process_file(file_path: str, output_dir: str = None) -> bool:
+    tests_file = read_file(file_path)
+    if tests_file is None:
+        return False
+
+    return create_pdf(tests_file, os.path.basename(file_path), output_dir)
+
+
+def process_directory(directory: str, output_dir: str = None) -> None:
+    if not os.path.exists(directory):
+        print(f"Каталог {directory} не существует")
+        return None
+
+    for file in os.listdir(directory):
+        if file.endswith(".bbl") or file.endswith(".log"):
+            file_path = os.path.join(directory, file)
+            if process_file(file_path, output_dir):
+                print(f"Файл: {file_path}")
+                print("Отчет успешно сгенерирован\n")
+
+    return None
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("-f", "--file", type=str, help="Файл для обработки (.bbl или .log)")
+    group.add_argument("-d", "--directory", type=str, help="Каталог с файлами для обработки")
+
+    parser.add_argument("-o", "--output", type=str, help="Каталог для сохранения отчетов")
+
+    args = parser.parse_args()
+
+    if args.file:
+        if process_file(args.file, output_dir=args.output):
+            print(f"Файл: {args.file}")
+            print("Отчет успешно сгенерирован\n")
+            return
+
+    elif args.directory:
+        process_directory(args.directory, output_dir=args.output)
+        return
+
+    if process_file(input("Введите путь до файла: ")):
+        print("Отчет успешно сгенерирован")
 
 
 if __name__ == "__main__":
-    # for f in os.listdir("data"):
-    #     print("Файл: " + f)
-    #     print("Отчет успешно сгенерирован\n")
-
-    f = "ADATA-SU650-240G-dead-random.bbl"
-    print("Файл: " + f)
-    if main(f):
-        print("Отчет успешно сгенерирован")
+    main()
