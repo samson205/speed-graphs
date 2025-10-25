@@ -147,13 +147,14 @@ def plots(df_tests: list) -> None:
         ax1.plot(new_x, new_y)
         ax1.set_title(current_test['test_name'].iloc[0] +
                       " (зависимость скорости от времени)", fontsize=20)
-        ax1.set_xlabel('Время, сек', fontsize=18)
+        ax1.set_xlabel('Время', fontsize=18)
         ax1.set_ylabel(f"Скорость, {current_test['speed_dim'].iloc[0]}", fontsize=18)
         ax1.grid(which='minor', color='0.85')
         ax1.minorticks_on()
         ax1.grid(which='major', color='0.5')
         ax1.tick_params(axis='both', which='major', labelsize=16)
         ax1.set_ylim(ymin=0)
+        ax1.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, pos: format_time(x)))
         fig1.savefig(f"temp/test{i + 1}.png")
 
         fig2, ax2 = plt.subplots(figsize=(18, 10))
@@ -170,6 +171,7 @@ def plots(df_tests: list) -> None:
         ax2.ticklabel_format(style='plain')
         ax2.tick_params(axis='both', which='major', labelsize=16)
         ax2.set_ylim(ymin=0)
+        ax2.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, pos: format_time(x)))
         fig2.savefig(f"temp/test{i + 1}_percent.png")
 
         plt.close("all")
@@ -222,7 +224,7 @@ def mean_cycle_time(df_tests: list) -> str:
     all_time = [df_tests[i]['total_time'].iloc[-1] for i in range(len(df_tests))]
     mean_time = round(sum(all_time) / len(all_time))
     spread = round(((max(all_time) - min(all_time)) / mean_time) * 100, 2)
-    return f"{mean_time // 3600}:{(mean_time % 3600) // 60}:{mean_time % 60}\n±{spread}%"
+    return f"{format_time(mean_time)}\n±{spread}%"
 
 
 def format_blocks(blocks: int) -> str:
@@ -235,6 +237,20 @@ def format_blocks(blocks: int) -> str:
     elif size_kb >= 1024:
         return f"{size_kb / 1024:.2f} МБ"
     return f"{size_kb} кБ"
+
+
+def format_time(total_seconds: int) -> str:
+    total_seconds = int(total_seconds)
+    if total_seconds < 3600:
+        minutes = total_seconds // 60
+        seconds = total_seconds % 60
+        return f"{minutes:02d}:{seconds:02d}"
+
+    else:
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
 def create_pdf(all_tests: FileInfo, file_name: str, output_dir: str = None) -> bool:
@@ -255,8 +271,9 @@ def create_pdf(all_tests: FileInfo, file_name: str, output_dir: str = None) -> b
         plots(df_tests)
         generator = PDFGenerator(output_path)
         generator.add_title()
-        time_string = (f"{df_tests[-1]['hours'].iloc[-1]}:" +
-                       f"{df_tests[-1]['minutes'].iloc[-1]}:{df_tests[-1]['seconds'].iloc[-1]}")
+        total_time = (df_tests[-1]['hours'].iloc[-1] * 3600 +
+                      df_tests[-1]['minutes'].iloc[-1] * 60 + df_tests[-1]['seconds'].iloc[-1])
+        time_string = format_time(total_time)
         max_write, max_read = max_speed(df_tests)
         min_write, min_read = min_speed(df_tests)
         mean_write, mean_read = mean_speed(df_tests)
@@ -286,7 +303,7 @@ def create_pdf(all_tests: FileInfo, file_name: str, output_dir: str = None) -> b
             current_test = df_tests[i]
             speed_dim = current_test['speed_dim'].iloc[-1]
             total_time = current_test['total_time'].iloc[-1]
-            time_string = f"{total_time // 3600}:{(total_time % 3600) // 60}:{total_time % 60}"
+            time_string = format_time(total_time)
             tests_table.append(
                 [i + 1, current_test['test_name'].iloc[-1], time_string,
                  f"{round(current_test['speed'].mean(), 1)} {speed_dim}",
