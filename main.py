@@ -134,15 +134,23 @@ def calculate_speed(test: dict) -> pd.DataFrame:
     return df
 
 
-def plots(df_tests: list) -> None:
+def plots(df_tests: list, combined: bool = False) -> None:
     if not os.path.exists("temp"):
         os.mkdir("temp")
 
+    if combined:
+        combined_plots(df_tests)
+
     for i, current_test in enumerate(df_tests):
+        if "Запись" in current_test['test_name'].iloc[0]:
+            color = "firebrick"
+        else:
+            color = "#1f77b4"
+
         fig1, ax1 = plt.subplots(figsize=(18, 10))
         new_x = np.linspace(0, current_test['total_time'].iloc[-1], 1500)
         new_y = np.interp(new_x, current_test['total_time'], current_test['speed'])
-        ax1.plot(new_x, new_y)
+        ax1.plot(new_x, new_y, color=color)
         ax1.set_title(current_test['test_name'].iloc[0], fontsize=22)
         ax1.set_xlabel('Время', fontsize=20)
         ax1.set_ylabel(f"Скорость, {current_test['speed_dim'].iloc[0]}", fontsize=20)
@@ -157,7 +165,7 @@ def plots(df_tests: list) -> None:
         fig2, ax2 = plt.subplots(figsize=(18, 10))
         new_x = np.linspace(0, current_test['percent'].iloc[-1], 1500)
         new_y = np.interp(new_x, current_test['percent'], current_test['speed'])
-        ax2.plot(new_x, new_y)
+        ax2.plot(new_x, new_y, color=color)
         ax2.set_title(current_test['test_name'].iloc[0], fontsize=22)
         ax2.set_xlabel('Объем накопителя в %', fontsize=20)
         ax2.set_ylabel(f"Скорость, {current_test['speed_dim'].iloc[0]}", fontsize=20)
@@ -168,6 +176,97 @@ def plots(df_tests: list) -> None:
         ax2.tick_params(axis='both', which='major', labelsize=18)
         ax2.set_ylim(ymin=0)
         fig2.savefig(f"temp/test{i + 1}_percent.png")
+
+        plt.close("all")
+
+
+def combined_plots(df_tests: list) -> None:
+    test_cycles = []
+    i = 0
+
+    while i < len(df_tests) - 1:
+        current_test = df_tests[i]
+        current_name = current_test['test_name'].iloc[0]
+        is_write = "Запись" in current_name
+
+        if is_write:
+            next_test = df_tests[i + 1]
+            next_name = next_test['test_name'].iloc[0]
+            next_is_write = "Запись" in next_name
+
+            if not next_is_write:
+                test_cycles.append([current_test, next_test])  # Запись, чтение
+                i += 2
+                continue
+
+        else:
+            next_test = df_tests[i + 1]
+            next_name = next_test['test_name'].iloc[0]
+            next_is_write = "Запись" in next_name
+
+            if next_is_write:
+                test_cycles.append([next_test, current_test])  # Запись, чтение
+                i += 2
+                continue
+
+        i += 1
+
+    colors = ['#1f77b4', 'firebrick']
+    labels = ['Чтение', 'Запись']
+
+    for i, cycle in enumerate(test_cycles):
+        write_test, read_test = cycle
+
+        write_time = write_test['total_time']
+        write_speed = write_test['speed']
+        new_x_write = np.linspace(0, write_time.iloc[-1], 1500)
+        new_y_write = np.interp(new_x_write, write_time, write_speed)
+
+        read_time = read_test['total_time']
+        read_speed = read_test['speed']
+        new_x_read = np.linspace(0, read_time.iloc[-1], 1500)
+        new_y_read = np.interp(new_x_read, read_time, read_speed)
+
+        fig1, ax1 = plt.subplots(figsize=(18, 10))
+        ax1.set_title(f"Комбинированный график цикла {i + 1}", fontsize=22)
+        ax1.plot(new_x_write, new_y_write,
+                 label=f"{labels[1]} ({write_test['speed_dim'].iloc[0]})", color=colors[1])
+        ax1.plot(new_x_read, new_y_read,
+                 label=f"{labels[0]} ({read_test['speed_dim'].iloc[0]})", color=colors[0])
+        ax1.set_xlabel("Время", fontsize=20)
+        ax1.set_ylabel("Скорость", fontsize=20)
+        ax1.grid(which='minor', color='0.85')
+        ax1.minorticks_on()
+        ax1.grid(which='major', color='0.5')
+        ax1.tick_params(axis='both', which='major', labelsize=18)
+        ax1.set_ylim(ymin=0)
+        ax1.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, pos: format_time(x)))
+        ax1.legend(fontsize=18)
+        fig1.savefig(f"temp/combined_{i + 1}.png")
+
+        write_percent = write_test['percent']
+        new_x_write_p = np.linspace(0, write_percent.iloc[-1], 1500)
+        new_y_write_p = np.interp(new_x_write_p, write_percent, write_speed)
+
+        read_percent = read_test['percent']
+        new_x_read_p = np.linspace(0, read_percent.iloc[-1], 1500)
+        new_y_read_p = np.interp(new_x_read_p, read_percent, read_speed)
+
+        fig2, ax2 = plt.subplots(figsize=(18, 10))
+        ax2.set_title(f"Комбинированный график цикла {i + 1}", fontsize=22)
+        ax2.plot(new_x_write_p, new_y_write_p,
+                 label=f"{labels[1]} ({write_test['speed_dim'].iloc[0]})", color=colors[1])
+        ax2.plot(new_x_read_p, new_y_read_p,
+                 label=f"{labels[0]} ({read_test['speed_dim'].iloc[0]})", color=colors[0])
+        ax2.set_xlabel("Объем накопителя в %", fontsize=20)
+        ax2.set_ylabel("Скорость", fontsize=20)
+        ax2.grid(which='minor', color='0.85')
+        ax2.minorticks_on()
+        ax2.grid(which='major', color='0.5')
+        ax2.tick_params(axis='both', which='major', labelsize=18)
+        ax2.set_ylim(ymin=0)
+        ax2.legend(fontsize=18)
+        fig2.savefig(f"temp/combined_percent_{i + 1}.png")
 
         plt.close("all")
 
@@ -248,7 +347,7 @@ def format_time(total_seconds: int) -> str:
         return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
-def create_pdf(all_tests: FileInfo, file_name: str, output_dir: str = None) -> None:
+def create_pdf(all_tests: FileInfo, file_name: str, output_dir: str = None, combined: bool = False) -> None:
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
         output_path = os.path.join(output_dir, f"{os.path.splitext(file_name)[0]}.pdf")
@@ -282,7 +381,7 @@ def create_pdf(all_tests: FileInfo, file_name: str, output_dir: str = None) -> N
              f"{round(current_test['speed'].max(), 1)} {speed_dim}"]
         )
 
-    plots(df_tests)
+    plots(df_tests, combined=combined)
     generator = PDFGenerator(output_path)
     generator.add_title()
     total_time = (df_tests[-1]['hours'].iloc[-1] * 3600 +
@@ -314,21 +413,35 @@ def create_pdf(all_tests: FileInfo, file_name: str, output_dir: str = None) -> N
     for i in range(len(tests)):
         generator.add_image(f"temp/test{i + 1}.png")
         generator.add_image(f"temp/test{i + 1}_percent.png")
+
+    if combined:
+        generator.add_page_break()
+
+        combined_files = []
+        for file_name in os.listdir("temp"):
+            if file_name.startswith("combined") and file_name.endswith(".png"):
+                combined_files.append(file_name)
+
+        combined_files.sort()
+
+        for combined_file in combined_files:
+            generator.add_image(f"temp/{combined_file}")
+
     generator.generate()
     delete_images()
 
 
-def process_file(file_path: str, output_dir: str = None) -> bool:
+def process_file(file_path: str, output_dir: str = None, combined: bool = False) -> bool:
     tests_file = read_file(file_path)
     if tests_file is None:
         return False
 
-    create_pdf(tests_file, os.path.basename(file_path), output_dir)
+    create_pdf(tests_file, os.path.basename(file_path), output_dir, combined)
 
     return True
 
 
-def process_directory(directory: str, output_dir: str = None) -> None:
+def process_directory(directory: str, output_dir: str = None, combined: bool = False) -> None:
     if not os.path.exists(directory):
         print(f"Каталог {directory} не существует")
         return None
@@ -337,7 +450,7 @@ def process_directory(directory: str, output_dir: str = None) -> None:
         if file.endswith(".bbl") or file.endswith(".log"):
             file_path = os.path.join(directory, file)
             print(f"Файл: {file_path}")
-            if process_file(file_path, output_dir):
+            if process_file(file_path, output_dir, combined):
                 print("Отчет успешно сгенерирован\n")
             else:
                 print("Отчет не был сгенерирован")
@@ -353,18 +466,20 @@ def main() -> None:
     group.add_argument("-d", "--directory", type=str, help="Каталог с файлами для обработки")
 
     parser.add_argument("-o", "--output", type=str, help="Каталог для сохранения отчетов")
+    parser.add_argument("-c", "--combined", action="store_true",
+                        help="Создавать комбинированные графики для циклов чтения+записи")
 
     args = parser.parse_args()
 
     if args.file:
         print(f"Файл: {args.file}")
-        if process_file(args.file, output_dir=args.output):
+        if process_file(args.file, output_dir=args.output, combined=args.combined):
             print("Отчет успешно сгенерирован\n")
             return
         print("Отчет не был сгенерирован")
 
     elif args.directory:
-        process_directory(args.directory, output_dir=args.output)
+        process_directory(args.directory, output_dir=args.output, combined=args.combined)
         return
 
     # if process_file(input("Введите путь до файла: ")):
