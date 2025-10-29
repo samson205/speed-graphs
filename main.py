@@ -2,7 +2,7 @@ import argparse
 import os
 import re
 from datetime import date
-from typing import Union
+from typing import Union, Tuple
 
 import numpy as np
 import pandas as pd
@@ -17,13 +17,25 @@ class FileInfo:
     mode = None
     total_blocks = None
     complete = None
+    block_size = None
 
     def __init__(self, all_tests: list, mode: str,
-                 total_blocks: int, complete: bool):
+                 total_blocks: int, complete: bool, block_size: int = 1):
         self.all_tests = all_tests
         self.mode = mode
         self.total_blocks = total_blocks
         self.complete = complete
+        self.block_size = block_size
+
+
+def get_block_size(file_name: str) -> int:
+    filename_upper = file_name.upper()
+    match = re.search(r'(\d+)T', filename_upper)
+    if match:
+        size = int(match.group(1))
+        return 4 if size > 4 else 1
+
+    return 1
 
 
 def read_file(file_name: str) -> Union[FileInfo, None]:
@@ -43,6 +55,7 @@ def read_file(file_name: str) -> Union[FileInfo, None]:
     complete = False
     total_blocks_split = blocks.split()
     total_blocks = int(total_blocks_split[4]) - int(total_blocks_split[2])
+    block_size = get_block_size(file_name)
 
     for line in lines[2:]:
         line = line.strip()
@@ -51,8 +64,13 @@ def read_file(file_name: str) -> Union[FileInfo, None]:
 
         if ":" in line and ("badblocks" not in line):
             name, data_part = line.split(":", 1)
-            if "with" in name:
-                name = f"Запись ({name.split("with", 1)[-1].strip()})"
+            if "Testing" in name:
+                name = f"Запись ({name.split('with', 1)[-1].strip()})"
+            elif "Reading and comparing" in name:
+                name = "Чтение и сравнение"
+            elif "Reading" in name:
+                name = "Чтение"
+
             new_data = re.sub(r'\x08', "END", data_part)
             data = new_data.split("END")
             current = {
@@ -72,7 +90,7 @@ def read_file(file_name: str) -> Union[FileInfo, None]:
                 elif res is None and x != "done":
                     if current:
                         all_tests.append(current)
-                    return FileInfo(all_tests, mode, total_blocks, complete)
+                    return FileInfo(all_tests, mode, total_blocks, complete, block_size)
         else:
             if 'completed' in line:
                 complete = True
@@ -81,7 +99,7 @@ def read_file(file_name: str) -> Union[FileInfo, None]:
             all_tests.append(current)
             current = None
 
-    return FileInfo(all_tests, mode, total_blocks, complete)
+    return FileInfo(all_tests, mode, total_blocks, complete, block_size)
 
 
 def data_processed(data: str) -> Union[dict, None]:
@@ -106,7 +124,7 @@ def data_processed(data: str) -> Union[dict, None]:
     return None
 
 
-def calculate_speed(test: dict) -> pd.DataFrame:
+def calculate_speed(test: dict, block_size: int) -> pd.DataFrame:
     data = test['data']
 
     df = pd.DataFrame(data)
@@ -118,7 +136,7 @@ def calculate_speed(test: dict) -> pd.DataFrame:
     df['time_delta'] = df['total_time'].diff()
     df = df[df['time_delta'] > 0]
 
-    b_per_sec = (df['blocks_delta'] * 1024) / df['time_delta']
+    b_per_sec = (df['blocks_delta'] * 1024 * block_size) / df['time_delta']
     if b_per_sec.mean() >= 1024 * 1024:
         df['speed'] = b_per_sec / 1024 / 1024
         df['speed_dim'] = "МБ/с"
@@ -281,7 +299,7 @@ def delete_images(folder_path: str = "temp") -> None:
             print(f"Ошибка при удалении файла {file_path}")
 
 
-def mean_speed(df_tests: list) -> tuple[float, float]:
+def mean_speed(df_tests: list) -> Tuple[float, float]:
     all_read_speeds, all_write_speeds = [], []
     for i in range(len(df_tests)):
         current_test = df_tests[i]
@@ -292,7 +310,7 @@ def mean_speed(df_tests: list) -> tuple[float, float]:
     return round(pd.Series(all_write_speeds).mean(), 1), round(pd.Series(all_read_speeds).mean(), 1)
 
 
-def min_speed(df_tests: list) -> tuple[float, float]:
+def min_speed(df_tests: list) -> Tuple[float, float]:
     all_read_speeds, all_write_speeds = [], []
     for i in range(len(df_tests)):
         current_test = df_tests[i]
@@ -303,7 +321,7 @@ def min_speed(df_tests: list) -> tuple[float, float]:
     return round(pd.Series(all_write_speeds).min(), 1), round(pd.Series(all_read_speeds).min(), 1)
 
 
-def max_speed(df_tests: list) -> tuple[float, float]:
+def max_speed(df_tests: list) -> Tuple[float, float]:
     all_read_speeds, all_write_speeds = [], []
     for i in range(len(df_tests)):
         current_test = df_tests[i]
@@ -321,8 +339,8 @@ def mean_cycle_time(df_tests: list) -> str:
     return f"{format_time(mean_time)}\n±{spread}%"
 
 
-def format_blocks(blocks: int) -> str:
-    size_kb = blocks
+def format_blocks(blocks: int, block_size: int) -> str:
+    size_kb = blocks * block_size
 
     if size_kb >= 1024 * 1024 * 1024:
         return f"{size_kb / 1024 / 1024 / 1024:.2f} ТБ"
@@ -357,7 +375,7 @@ def create_pdf(all_tests: FileInfo, file_name: str, output_dir: str = None, comb
 
     tests, name, blocks, complete = (all_tests.all_tests, all_tests.mode,
                                      all_tests.total_blocks, all_tests.complete)
-    df_tests = [calculate_speed(tests[i]) for i in range(len(tests))]
+    df_tests = [calculate_speed(tests[i], all_tests.block_size) for i in range(len(tests))]
     dim_r, dim_w = "", ""
 
     tests_table = [
@@ -383,7 +401,7 @@ def create_pdf(all_tests: FileInfo, file_name: str, output_dir: str = None, comb
 
     plots(df_tests, combined=combined)
     generator = PDFGenerator(output_path)
-    generator.add_title()
+    generator.add_title(f"Отчет {file_name}")
     total_time = (df_tests[-1]['hours'].iloc[-1] * 3600 +
                   df_tests[-1]['minutes'].iloc[-1] * 60 + df_tests[-1]['seconds'].iloc[-1])
     time_string = format_time(total_time)
@@ -396,7 +414,7 @@ def create_pdf(all_tests: FileInfo, file_name: str, output_dir: str = None, comb
         ["Параметр", "Чтение", "Запись"],
         ["Название исходного файла", file_name],
         ["Дата генерации отчета", date.today().strftime("%d/%m/%Y")],
-        ["Объем накопителя", f"{blocks:,} блоков\n{format_blocks(blocks)}"],
+        ["Объем накопителя", f"{blocks:,} блоков\n{format_blocks(blocks, all_tests.block_size)}"],
         ["Режим тестирования", name.capitalize()],
         ["Результат тестирования", complete_test],
         ["Общее время тестирования", time_string],
@@ -446,14 +464,19 @@ def process_directory(directory: str, output_dir: str = None, combined: bool = F
         print(f"Каталог {directory} не существует")
         return None
 
+    found_files = False
     for file in os.listdir(directory):
         if file.endswith(".bbl") or file.endswith(".log"):
             file_path = os.path.join(directory, file)
             print(f"Файл: {file_path}")
             if process_file(file_path, output_dir, combined):
                 print("Отчет успешно сгенерирован\n")
+                found_files = True
             else:
                 print("Отчет не был сгенерирован")
+
+    if not found_files:
+        print(f"В каталоге {directory} не найдено файлов с расширением .bbl или .log")
 
     return None
 
@@ -467,7 +490,7 @@ def main() -> None:
 
     parser.add_argument("-o", "--output", type=str, help="Каталог для сохранения отчетов")
     parser.add_argument("-c", "--combined", action="store_true",
-                        help="Создавать комбинированные графики для циклов чтения+записи")
+                        help="Создание комбинированных графиков для циклов чтения+записи")
 
     args = parser.parse_args()
 
@@ -482,10 +505,8 @@ def main() -> None:
         process_directory(args.directory, output_dir=args.output, combined=args.combined)
         return
 
-    # if process_file(input("Введите путь до файла: ")):
-    #     print("Отчет успешно сгенерирован")
-    # if process_file("data/ADATA-SU650-240G-dead-random.bbl"):
-    #     print("Отчет успешно сгенерирован")
+    else:
+        print("Не указан файл или каталог для обработки. Используйте --help")
 
 
 if __name__ == "__main__":
